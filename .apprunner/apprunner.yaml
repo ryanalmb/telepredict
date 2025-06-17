@@ -6,7 +6,6 @@ build:
       - echo "Building Sports Prediction Bot for AWS App Runner"
     pre-build:
       - echo "Pre-build phase - validating environment"
-      - echo "Checking required environment variables..."
     post-build:
       - echo "Build completed successfully"
 

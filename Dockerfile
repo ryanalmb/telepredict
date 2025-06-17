@@ -80,4 +80,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 EXPOSE 8000
 
 # Production command
-CMD ["python", "-m", "src.sports_prediction.cli", "run-bot", "--production"]
+CMD ["python", "-m", "src.sports_prediction.cli", "run-bot", "--production", "--port", "8000"]

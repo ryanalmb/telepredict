@@ -24,37 +24,46 @@ def cli():
 
 @cli.command()
 @click.option('--webhook-url', help='Webhook URL for production deployment')
-@click.option('--port', default=8443, help='Port for webhook server')
+@click.option('--port', default=8000, help='Port for webhook server')
 @click.option('--production', is_flag=True, help='Run in production mode')
 def run_bot(webhook_url: Optional[str], port: int, production: bool):
     """Run the Telegram bot."""
     click.echo("🤖 Starting Sports Prediction Bot...")
-    
-    async def start_bot():
-        bot = SportsPredictionBot()
-        
+
+    if production:
+        # Use FastAPI web server for production (AWS App Runner)
+        click.echo(f"🌐 Starting production server on port {port}")
+        from ..web_server import run_server_sync
+
         try:
-            await bot.initialize()
-            
-            if production and webhook_url:
-                click.echo(f"🌐 Starting bot with webhook: {webhook_url}")
-                await bot.start_webhook(webhook_url, port)
-            else:
+            run_server_sync(host="0.0.0.0", port=port)
+        except KeyboardInterrupt:
+            click.echo("\n⏹️ Server stopped by user")
+        except Exception as e:
+            click.echo(f"❌ Error running server: {e}")
+            logger.error(f"Server error: {e}")
+    else:
+        # Use polling for development
+        async def start_bot():
+            bot = SportsPredictionBot()
+
+            try:
+                await bot.initialize()
                 click.echo("🔄 Starting bot with polling...")
                 await bot.start_polling()
-                
+
+            except KeyboardInterrupt:
+                click.echo("\n⏹️ Bot stopped by user")
+            except Exception as e:
+                click.echo(f"❌ Error running bot: {e}")
+                logger.error(f"Bot error: {e}")
+            finally:
+                await bot.stop()
+
+        try:
+            asyncio.run(start_bot())
         except KeyboardInterrupt:
-            click.echo("\n⏹️ Bot stopped by user")
-        except Exception as e:
-            click.echo(f"❌ Error running bot: {e}")
-            logger.error(f"Bot error: {e}")
-        finally:
-            await bot.stop()
-    
-    try:
-        asyncio.run(start_bot())
-    except KeyboardInterrupt:
-        click.echo("\n👋 Goodbye!")
+            click.echo("\n👋 Goodbye!")
 
 
 @cli.command()
