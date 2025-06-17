@@ -5,14 +5,10 @@ build:
     build:
       - echo "Building application"
 run:
-  runtime-version: latest
   command: python -m src.sports_prediction.cli run-bot --production
   network:
     port: 8000
-    env: PORT
   env:
-    - name: PORT
-      value: "8000"
     - name: TELEGRAM_BOT_TOKEN
       value: ${TELEGRAM_BOT_TOKEN}
     - name: TELEGRAM_WEBHOOK_URL
