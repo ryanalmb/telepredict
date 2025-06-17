@@ -1,0 +1,284 @@
+name: Comprehensive Testing
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  test-basic:
+    name: Basic Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install basic dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install click pydantic pydantic-settings python-dotenv pathlib
+    
+    - name: Test project structure
+      run: python test_basic.py
+    
+    - name: Test configuration
+      run: python test_cli_minimal.py
+
+  test-full-dependencies:
+    name: Full Dependency Test
+    runs-on: ubuntu-latest
+    
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      mongodb:
+        image: mongo:6
+        ports:
+          - 27017:27017
+        env:
+          MONGO_INITDB_ROOT_USERNAME: admin
+          MONGO_INITDB_ROOT_PASSWORD: password
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+      timeout-minutes: 15
+    
+    - name: Create test environment file
+      run: |
+        cat > .env << EOF
+        TELEGRAM_BOT_TOKEN=test_token_123456
+        ESPN_API_KEY=test_espn_key
+        SPORTRADAR_API_KEY=test_sportradar_key
+        ODDS_API_KEY=test_odds_key
+        REDIS_URL=redis://localhost:6379
+        MONGODB_URL=mongodb://admin:password@localhost:27017/test?authSource=admin
+        LOG_LEVEL=INFO
+        DEBUG=True
+        TESTING=True
+        EOF
+    
+    - name: Run comprehensive test suite
+      run: python remote_testing/full_test_suite.py
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results
+        path: test_results.json
+
+  test-infrastructure:
+    name: Infrastructure Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+      if: env.AWS_ACCESS_KEY_ID != ''
+    
+    - name: Validate CloudFormation template
+      run: |
+        if [ -n "$AWS_ACCESS_KEY_ID" ]; then
+          aws cloudformation validate-template --template-body file://infrastructure/infrastructure.yaml
+        else
+          echo "AWS credentials not available, skipping CloudFormation validation"
+        fi
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    
+    - name: Validate parameter files
+      run: |
+        for file in infrastructure/parameters/*.json; do
+          echo "Validating $file"
+          python -m json.tool "$file" > /dev/null
+        done
+
+  test-docker:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build Docker image
+      run: |
+        docker build -t sports-prediction-bot:test .
+    
+    - name: Test Docker image
+      run: |
+        docker run --rm sports-prediction-bot:test python -c "import sys; print(f'Python {sys.version}')"
+
+  test-security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install security tools
+      run: |
+        pip install bandit safety
+    
+    - name: Run Bandit security scan
+      run: |
+        bandit -r src/ -f json -o bandit-report.json || true
+    
+    - name: Run Safety check
+      run: |
+        safety check --json --output safety-report.json || true
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          safety-report.json
+
+  test-performance:
+    name: Performance Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install click pydantic pydantic-settings python-dotenv memory-profiler
+    
+    - name: Run memory usage test
+      run: |
+        python -c "
+        import sys
+        sys.path.insert(0, 'src')
+        from memory_profiler import profile
+        
+        @profile
+        def test_imports():
+            from sports_prediction.config.settings import settings
+            return len(settings.supported_sports)
+        
+        result = test_imports()
+        print(f'Loaded {result} sports configurations')
+        "
+
+  summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [test-basic, test-full-dependencies, test-infrastructure, test-docker, test-security, test-performance]
+    if: always()
+    
+    steps:
+    - name: Download test results
+      uses: actions/download-artifact@v3
+      with:
+        name: test-results
+      continue-on-error: true
+    
+    - name: Generate summary
+      run: |
+        echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.test-basic.result }}" == "success" ]; then
+          echo "✅ Basic Tests: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Basic Tests: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.test-full-dependencies.result }}" == "success" ]; then
+          echo "✅ Full Dependencies: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Full Dependencies: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.test-infrastructure.result }}" == "success" ]; then
+          echo "✅ Infrastructure: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Infrastructure: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.test-docker.result }}" == "success" ]; then
+          echo "✅ Docker: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Docker: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.test-security.result }}" == "success" ]; then
+          echo "✅ Security: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Security: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.test-performance.result }}" == "success" ]; then
+          echo "✅ Performance: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Performance: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "🚀 **Project Status**: Ready for deployment if all tests pass" >> $GITHUB_STEP_SUMMARY

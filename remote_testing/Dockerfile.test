@@ -1,0 +1,77 @@
+# Multi-stage Dockerfile for comprehensive testing
+FROM python:3.11-slim as base
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    git \
+    redis-server \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install MongoDB
+RUN curl -fsSL https://pgp.mongodb.com/server-6.0.asc | gpg -o /usr/share/keyrings/mongodb-server-6.0.gpg --dearmor \
+    && echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-6.0.list \
+    && apt-get update \
+    && apt-get install -y mongodb-org \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy project files
+COPY . .
+
+# Create test environment
+RUN echo 'TELEGRAM_BOT_TOKEN=test_token_123456\n\
+ESPN_API_KEY=test_espn_key\n\
+SPORTRADAR_API_KEY=test_sportradar_key\n\
+ODDS_API_KEY=test_odds_key\n\
+REDIS_URL=redis://localhost:6379\n\
+MONGODB_URL=mongodb://localhost:27017/test\n\
+LOG_LEVEL=INFO\n\
+DEBUG=True\n\
+TESTING=True' > .env
+
+# Create startup script
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+# Start services\n\
+redis-server --daemonize yes\n\
+mongod --fork --logpath /var/log/mongodb.log\n\
+\n\
+# Wait for services to start\n\
+sleep 5\n\
+\n\
+# Run tests\n\
+echo "🧪 Starting comprehensive test suite in Docker..."\n\
+python remote_testing/full_test_suite.py\n\
+\n\
+# Keep container running if requested\n\
+if [ "$KEEP_RUNNING" = "true" ]; then\n\
+    echo "Container will keep running for debugging..."\n\
+    tail -f /dev/null\n\
+fi' > /app/run_tests.sh
+
+RUN chmod +x /app/run_tests.sh
+
+# Expose ports for debugging
+EXPOSE 6379 27017 8000
+
+# Default command
+CMD ["/app/run_tests.sh"]
+
+# Test stage - runs tests and exits
+FROM base as test
+RUN /app/run_tests.sh
+
+# Development stage - keeps running for debugging
+FROM base as dev
+ENV KEEP_RUNNING=true
+CMD ["/app/run_tests.sh"]

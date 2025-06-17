@@ -1,0 +1,64 @@
+{
+  "start_time": "2025-06-17T00:32:59.786925",
+  "environment": {
+    "python_version": "3.12.0 (tags/v3.12.0:0fb18b0, Oct  2 2023, 13:03:39) [MSC v.1935 64 bit (AMD64)]",
+    "platform": "win32",
+    "cwd": "C:\\Users\\user\\Documents\\augment-projects\\telebot",
+    "user": "unknown",
+    "hostname": "unknown"
+  },
+  "tests": {
+    "Python Environment": {
+      "status": "PASSED",
+      "duration": 0.6156208515167236,
+      "error": null
+    },
+    "Project Structure": {
+      "status": "PASSED",
+      "duration": 0.0009989738464355469,
+      "error": null
+    },
+    "Dependency Installation": {
+      "status": "PASSED",
+      "duration": 16.502209424972534,
+      "error": null
+    },
+    "Configuration Loading": {
+      "status": "PASSED",
+      "duration": 1.2101190090179443,
+      "error": null
+    },
+    "Core Imports": {
+      "status": "PASSED",
+      "duration": 0.011968612670898438,
+      "error": null
+    },
+    "CLI Structure": {
+      "status": "FAILED",
+      "duration": 0.0009958744049072266,
+      "error": null
+    },
+    "Infrastructure Files": {
+      "status": "PASSED",
+      "duration": 0.0029926300048828125,
+      "error": null
+    },
+    "Docker Configuration": {
+      "status": "PASSED",
+      "duration": 0.0009834766387939453,
+      "error": null
+    },
+    "Database Connections": {
+      "status": "PASSED",
+      "duration": 0.0020215511322021484,
+      "error": null
+    }
+  },
+  "summary": {
+    "total_tests": 9,
+    "passed_tests": 8,
+    "failed_tests": 1,
+    "success_rate": 88.88888888888889
+  },
+  "end_time": "2025-06-17T00:33:18.139833"
+}

@@ -1,0 +1,156 @@
+version: 1.0
+runtime: docker
+build:
+  commands:
+    build:
+      # Build the Docker image for production
+      - echo "Building Sports Prediction Bot for AWS App Runner"
+      - docker build --target production -t sports-prediction-bot .
+    pre-build:
+      # Pre-build setup and validation
+      - echo "Pre-build phase - validating environment"
+      - echo "Checking required environment variables..."
+      - |
+        if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
+          echo "ERROR: TELEGRAM_BOT_TOKEN is required"
+          exit 1
+        fi
+      - echo "Environment validation completed"
+    post-build:
+      # Post-build cleanup and optimization
+      - echo "Post-build phase - cleaning up"
+      - docker system prune -f
+      - echo "Build completed successfully"
+
+run:
+  runtime-version: latest
+  command: python -m src.sports_prediction.cli run-bot --production --webhook-url $TELEGRAM_WEBHOOK_URL
+  network:
+    port: 8000
+    env: PORT
+  env:
+    # Application settings
+    - name: PORT
+      value: "8000"
+    - name: ENVIRONMENT
+      value: "production"
+    - name: DEBUG
+      value: "False"
+    - name: LOG_LEVEL
+      value: "INFO"
+    
+    # Telegram Bot Configuration
+    - name: TELEGRAM_BOT_TOKEN
+      value: ${TELEGRAM_BOT_TOKEN}
+    - name: TELEGRAM_WEBHOOK_URL
+      value: ${TELEGRAM_WEBHOOK_URL}
+    
+    # Sports Data APIs
+    - name: ESPN_API_KEY
+      value: ${ESPN_API_KEY}
+    - name: SPORTRADAR_API_KEY
+      value: ${SPORTRADAR_API_KEY}
+    - name: ODDS_API_KEY
+      value: ${ODDS_API_KEY}
+    
+    # AWS Services
+    - name: AWS_REGION
+      value: ${AWS_REGION}
+    - name: AWS_ACCESS_KEY_ID
+      value: ${AWS_ACCESS_KEY_ID}
+    - name: AWS_SECRET_ACCESS_KEY
+      value: ${AWS_SECRET_ACCESS_KEY}
+    - name: AWS_S3_BUCKET
+      value: ${AWS_S3_BUCKET}
+    - name: AWS_DYNAMODB_TABLE
+      value: ${AWS_DYNAMODB_TABLE}
+    
+    # Database Configuration (using AWS services)
+    - name: REDIS_URL
+      value: ${REDIS_URL}  # AWS ElastiCache Redis endpoint
+    - name: MONGODB_URL
+      value: ${MONGODB_URL}  # AWS DocumentDB or MongoDB Atlas
+    
+    # Application Configuration
+    - name: SUPPORTED_SPORTS
+      value: "nba,nfl,mlb,nhl,mls,premier_league,la_liga,bundesliga,serie_a"
+    - name: MODEL_CONFIDENCE_THRESHOLD
+      value: "0.6"
+    - name: CACHE_TTL
+      value: "3600"
+    - name: REQUEST_TIMEOUT
+      value: "30"
+    - name: PREDICTION_TIMEOUT
+      value: "60"
+    
+    # Rate Limiting
+    - name: ESPN_RATE_LIMIT
+      value: "60"
+    - name: SPORTRADAR_RATE_LIMIT
+      value: "100"
+    - name: ODDS_API_RATE_LIMIT
+      value: "500"
+    
+    # Security
+    - name: SECRET_KEY
+      value: ${SECRET_KEY}
+    - name: ALLOWED_HOSTS
+      value: "*"  # App Runner handles this
+    
+    # Monitoring
+    - name: SENTRY_DSN
+      value: ${SENTRY_DSN}
+    - name: PROMETHEUS_ENABLED
+      value: "True"
+    
+    # Feature Flags
+    - name: ENABLE_WEB_SCRAPING
+      value: "True"
+    - name: ENABLE_ODDS_ANALYSIS
+      value: "True"
+    - name: ENABLE_PLAYER_STATS
+      value: "True"
+    - name: ENABLE_ADVANCED_ANALYTICS
+      value: "True"
+    - name: ENABLE_MODEL_EXPLANATIONS
+      value: "False"  # Disable SHAP for performance in App Runner
+
+  # Health check configuration
+  health-check:
+    path: "/health"
+    interval: 30
+    timeout: 10
+    healthy-threshold: 2
+    unhealthy-threshold: 5
+
+# App Runner service configuration
+service:
+  # Auto scaling configuration
+  auto-scaling:
+    min-size: 1
+    max-size: 10
+    target-cpu: 70
+    target-memory: 80
+  
+  # Instance configuration
+  instance:
+    cpu: 1024  # 1 vCPU
+    memory: 2048  # 2 GB RAM
+  
+  # Observability
+  observability:
+    tracing: true
+    
+# Additional App Runner specific settings
+apprunner:
+  # VPC configuration (if needed for database access)
+  vpc:
+    enable-logs: true
+    
+  # IAM role for accessing AWS services
+  access-role-arn: ${APP_RUNNER_ACCESS_ROLE_ARN}
+  
+  # Custom domain (optional)
+  custom-domain:
+    domain-name: ${CUSTOM_DOMAIN_NAME}
+    certificate-arn: ${SSL_CERTIFICATE_ARN}

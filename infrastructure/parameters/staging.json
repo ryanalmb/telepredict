@@ -1,0 +1,30 @@
+[
+  {
+    "ParameterKey": "Environment",
+    "ParameterValue": "staging"
+  },
+  {
+    "ParameterKey": "ProjectName",
+    "ParameterValue": "sports-prediction-bot"
+  },
+  {
+    "ParameterKey": "VpcCidr",
+    "ParameterValue": "10.1.0.0/16"
+  },
+  {
+    "ParameterKey": "TelegramBotToken",
+    "ParameterValue": "REPLACE_WITH_YOUR_STAGING_TELEGRAM_BOT_TOKEN"
+  },
+  {
+    "ParameterKey": "EspnApiKey",
+    "ParameterValue": "REPLACE_WITH_YOUR_ESPN_API_KEY"
+  },
+  {
+    "ParameterKey": "SportradarApiKey",
+    "ParameterValue": "REPLACE_WITH_YOUR_SPORTRADAR_API_KEY"
+  },
+  {
+    "ParameterKey": "OddsApiKey",
+    "ParameterValue": "REPLACE_WITH_YOUR_ODDS_API_KEY"
+  }
+]

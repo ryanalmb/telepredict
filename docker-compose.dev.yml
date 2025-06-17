@@ -1,0 +1,107 @@
+version: '3.8'
+
+# Development overrides for docker-compose.yml
+services:
+  sports-prediction-bot:
+    build:
+      target: development
+    environment:
+      - DEBUG=True
+      - LOG_LEVEL=DEBUG
+      - HOT_RELOAD=True
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./models:/app/models
+    ports:
+      - "8000:8000"
+      - "5678:5678"  # debugpy port
+    command: ["python", "-m", "debugpy", "--listen", "0.0.0.0:5678", "--wait-for-client", "-m", "src.sports_prediction.cli", "run-bot"]
+
+  # Development database with exposed ports
+  mongodb:
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=devpassword
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  # Development tools
+  jupyter:
+    build:
+      context: .
+      target: development
+    container_name: sports-prediction-jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/app/notebooks
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./models:/app/models
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+    command: ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''"]
+    networks:
+      - sports-prediction-network
+
+  # pgAdmin for database management (if using PostgreSQL in future)
+  # pgadmin:
+  #   image: dpage/pgadmin4:latest
+  #   container_name: sports-prediction-pgadmin
+  #   environment:
+  #     - PGADMIN_DEFAULT_EMAIL=admin@sportsprediction.com
+  #     - PGADMIN_DEFAULT_PASSWORD=devpassword
+  #   ports:
+  #     - "5050:80"
+  #   networks:
+  #     - sports-prediction-network
+
+  # MongoDB Express for database management
+  mongo-express:
+    image: mongo-express:latest
+    container_name: sports-prediction-mongo-express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=admin
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=devpassword
+      - ME_CONFIG_MONGODB_URL=mongodb://admin:devpassword@mongodb:27017/
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=devpassword
+    depends_on:
+      - mongodb
+    networks:
+      - sports-prediction-network
+
+  # Redis Commander for Redis management
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: sports-prediction-redis-commander
+    restart: unless-stopped
+    ports:
+      - "8082:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      - redis
+    networks:
+      - sports-prediction-network
+
+  # Mailhog for email testing
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: sports-prediction-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - sports-prediction-network
